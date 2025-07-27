@@ -76,6 +76,8 @@ jobs:
           --runtime ${{ matrix.runtime }} \
           --self-contained true \
           --output ./artifacts/${{ matrix.os }} \
+          -p:DebugType=None \
+          -p:DebugSymbols=false \
           -p:PublishSingleFile=true \
           -p:PublishTrimmed=true \
           -p:IncludeNativeLibrariesForSelfExtract=true \
