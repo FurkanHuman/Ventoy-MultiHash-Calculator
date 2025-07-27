@@ -1,0 +1,196 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version Of this Project"
+        required: true
+        default: "v0.0.1"
+
+env:
+  DOTNET_VERSION: "9.0.x"
+  PROJECT_NAME: "Ventoy_MultiHash_Calculator"
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        include:
+          - os: win-x64
+            runtime: win-x64
+            extension: .exe
+          - os: win-arm64
+            runtime: win-arm64
+            extension: .exe
+          - os: linux-x64
+            runtime: linux-x64
+            extension: ""
+          - os: linux-arm64
+            runtime: linux-arm64
+            extension: ""
+          - os: osx-x64
+            runtime: osx-x64
+            extension: ""
+          - os: osx-arm64
+            runtime: osx-arm64
+            extension: ""
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build and publish ${{ matrix.os }}
+        run: |
+          dotnet publish \
+            --configuration Release \
+            --runtime ${{ matrix.runtime }} \
+            --self-contained true \
+            --output ./artifacts/${{ matrix.os }} \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:Version=${{ steps.version.outputs.VERSION }}
+
+      - name: Create artifact archive
+        run: |
+          cd ./artifacts/${{ matrix.os }}
+          if [ "${{ matrix.runtime }}" == "win-x64" ] || [ "${{ matrix.runtime }}" == "win-arm64" ]; then
+            zip -r ../${{ env.PROJECT_NAME }}-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}.zip .
+          else
+            tar -czf ../${{ env.PROJECT_NAME }}-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}.tar.gz .
+          fi
+          cd ../..
+
+      - name: Calculate SHA256 hash
+        id: hash
+        run: |
+          cd ./artifacts
+          if [ "${{ matrix.runtime }}" == "win-x64" ] || [ "$matrix.runtime }}" == "win-arm64" ]; then
+            HASH=$(sha256sum ${{ env.PROJECT_NAME }}-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}.zip | cut -d ' ' -f 1)
+            echo "HASH=$HASH" >> $GITHUB_OUTPUT
+            echo "FILENAME=${{ env.PROJECT_NAME }}-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}.zip" >> $GITHUB_OUTPUT
+          else
+            HASH=$(sha256sum ${{ env.PROJECT_NAME }}-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}.tar.gz | cut -d ' ' -f 1)
+            echo "HASH=$HASH" >> $GITHUB_OUTPUT
+            echo "FILENAME=${{ env.PROJECT_NAME }}-${{ steps.version.outputs.VERSION }}-${{ matrix.os }}.tar.gz" >> $GITHUB_OUTPUT
+          fi
+          cd ..
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.os }}
+          path: ./artifacts/${{ steps.hash.outputs.FILENAME }}
+
+      - name: Create release notes
+        id: release_notes
+        run: |
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "## ${{ env.PROJECT_NAME }} ${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### SHA256 Checksums" >> $GITHUB_OUTPUT
+          echo "\`\`\`" >> $GITHUB_OUTPUT
+          echo "${{ steps.hash.outputs.HASH }}  ${{ steps.hash.outputs.FILENAME }}" >> $GITHUB_OUTPUT
+          echo "\`\`\`" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### Changes" >> $GITHUB_OUTPUT
+          echo "- Multi-platform build for ${{ matrix.os }}" >> $GITHUB_OUTPUT
+          echo "- Self-contained single file executable" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-artifacts
+
+      - name: Generate checksums file
+        run: |
+          cd ./release-artifacts
+          find . -name "*.zip" -o -name "*.tar.gz" | while read file; do
+            sha256sum "$file" >> ../checksums.txt
+          done
+          cd ..
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## ${{ env.PROJECT_NAME }} ${{ steps.version.outputs.VERSION }}
+
+            ### Supported Platforms
+            - Windows x64/ARM64
+            - Linux x64/ARM64  
+            - macOS x64/ARM64
+
+            ### Features
+            - Self-contained single file executables
+            - No .NET runtime required
+            - Optimized with trimming
+
+            ### Verification
+            Download checksums.txt and verify your download:
+            ```bash
+            sha256sum -c checksums.txt
+            ```
+
+            ### Installation
+            1. Download the appropriate file for your platform
+            2. Extract (if tar.gz) or unzip (if .zip)
+            3. Make executable (Linux/macOS): `chmod +x filename`
+            4. Run the application
+          files: |
+            ./release-artifacts/**/*.zip
+            ./release-artifacts/**/*.tar.gz
+            checksums.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
