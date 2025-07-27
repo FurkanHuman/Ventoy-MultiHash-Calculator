@@ -71,18 +71,18 @@ jobs:
 
       - name: Build and publish ${{ matrix.os }}
         run: |
-          dotnet publish \
-            --configuration Release \
-            --runtime ${{ matrix.runtime }} \
-            --self-contained true \
-            --output ./artifacts/${{ matrix.os }} \
-            -p:DebugType=None \
-            -p:DebugSymbols=false \
-            -p:PublishSingleFile=true \
-            -p:PublishTrimmed=true \
-            -p:IncludeNativeLibrariesForSelfExtract=false \
-            -p:TrimMode=Link
-            -p:Version=${{ steps.version.outputs.VERSION }}
+          dotnet publish Src/Ventoy_Hash_Calculator/Ventoy_Hash_Calculator.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.runtime }} \
+          --self-contained true \
+          --output ./artifacts/${{ matrix.os }} \
+          -p:DebugType=None \
+          -p:DebugSymbols=false \
+          -p:PublishSingleFile=true \
+          -p:PublishTrimmed=true \
+          -p:TrimMode=Link \
+          -p:IncludeNativeLibrariesForSelfExtract=false \
+          -p:Version=${{ steps.version.outputs.VERSION }}
 
       - name: Create artifact archive
         run: |
