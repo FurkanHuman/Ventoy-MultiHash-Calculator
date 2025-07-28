@@ -17,7 +17,7 @@ A cross-platform tool to calculate multiple hash types (MD5, SHA1, SHA256, SHA51
 
 ### Pre-built Releases
 
-1. Download the appropriate file for your OS from the [Releases](https://github.com/<your-repo-link>/releases) page.
+1. Download the appropriate file for your OS from the [Releases](https://github.com/FurkanHuman/Ventoy-MultiHash-Calculator/releases) page.
 2. Extract the `.zip` (Windows) or `.tar.gz` (Linux/macOS) archive.
 3. On Linux/macOS, make the file executable:
 
