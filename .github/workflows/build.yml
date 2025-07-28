@@ -163,7 +163,9 @@ jobs:
         run: |
           cd ./release-artifacts
           find . -name "*.zip" -o -name "*.tar.gz" | while read file; do
-            sha256sum "$file" >> ../checksums.txt
+            HASH=$(sha256sum "$file" | cut -d ' ' -f1)
+            BASENAME=$(basename "$file")
+            echo "$HASH  $BASENAME" >> ../checksums.txt
           done
           cd ..
 
