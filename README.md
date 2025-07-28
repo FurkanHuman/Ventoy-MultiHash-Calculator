@@ -30,7 +30,7 @@ A cross-platform tool to calculate multiple hash types (MD5, SHA1, SHA256, SHA51
 Requires .NET 9.0 SDK.
 
 ```sh
-git clone https://github.com/<your-repo-link>.git
+git clone https://github.com/FurkanHuman/Ventoy-MultiHash-Calculator.git
 cd Src/Ventoy_Hash_Calculator
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
